@@ -1,0 +1,1748 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Prompt Chain Builder</title>
+<meta name="description" content="Visueller Editor für mehrstufige Prompt-Ketten">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   TOKENS
+   ============================================================ */
+:root{
+  --bg-deep:#0a1220;
+  --bg-panel:#101c2e;
+  --bg-panel-alt:#0c1626;
+  --bg-elevated:#17293f;
+  --bg-elevated-2:#1d3049;
+  --border:#22354e;
+  --border-soft:#1a2841;
+  --text-primary:#e8eef7;
+  --text-secondary:#8fa5c4;
+  --text-tertiary:#5c7091;
+  --accent:#2dd4bf;
+  --accent-dim:#1f9c8c;
+  --accent-soft:rgba(45,212,191,.14);
+  --accent-glow:rgba(45,212,191,.45);
+  --accent-2:#38bdf8;
+  --accent-2-soft:rgba(56,189,248,.14);
+  --danger:#f87171;
+  --danger-soft:rgba(248,113,113,.14);
+  --radius-sm:8px;
+  --radius-md:12px;
+  --radius-lg:20px;
+  --shadow-md:0 10px 28px -10px rgba(0,0,0,.55);
+  --shadow-lg:0 24px 60px -20px rgba(0,0,0,.65);
+  --font-display:'Sora',sans-serif;
+  --font-body:'IBM Plex Sans',sans-serif;
+  --font-mono:'IBM Plex Mono',monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+  --sidebar-w:280px;
+  --topbar-h:76px;
+}
+
+*,*::before,*::after{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0;
+  font-family:var(--font-body);
+  color:var(--text-primary);
+  background:var(--bg-deep);
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  background:
+    radial-gradient(70% 55% at 12% -8%, rgba(45,212,191,.10), transparent 60%),
+    radial-gradient(60% 45% at 100% 0%, rgba(56,189,248,.08), transparent 55%),
+    radial-gradient(80% 60% at 50% 120%, rgba(29,48,73,.5), transparent 60%);
+  pointer-events:none;
+  z-index:0;
+}
+h1,h2,h3{font-family:var(--font-display);margin:0;}
+p{margin:0;}
+button{font-family:inherit;}
+input,textarea{font-family:inherit;color:inherit;}
+::selection{background:var(--accent-glow);color:#02110f;}
+
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px;border:2px solid transparent;background-clip:padding-box;}
+::-webkit-scrollbar-thumb:hover{background:var(--border-soft);}
+
+:focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+  border-radius:4px;
+}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;}
+}
+
+/* ============================================================
+   APP SHELL
+   ============================================================ */
+.app{
+  position:relative;
+  z-index:1;
+  display:flex;
+  height:100vh;
+  height:100dvh;
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar{
+  width:var(--sidebar-w);
+  flex:0 0 var(--sidebar-w);
+  background:var(--bg-panel-alt);
+  border-right:1px solid var(--border-soft);
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  transition:transform .28s var(--ease);
+  z-index:30;
+}
+.sidebar-header{
+  padding:22px 20px 14px;
+}
+.brand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.brand-icon{
+  width:38px;height:38px;
+  border-radius:11px;
+  background:linear-gradient(140deg,var(--accent),var(--accent-2));
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;
+  box-shadow:0 6px 18px -4px var(--accent-glow);
+  flex-shrink:0;
+}
+.brand-text{
+  font-family:var(--font-display);
+  font-weight:700;
+  font-size:15.5px;
+  line-height:1.25;
+  letter-spacing:.2px;
+}
+.brand-text small{
+  display:block;
+  font-family:var(--font-body);
+  font-weight:400;
+  font-size:11.5px;
+  color:var(--text-tertiary);
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  margin-top:2px;
+}
+
+.btn-new-workflow{
+  margin:6px 16px 14px;
+  padding:11px 14px;
+  border-radius:var(--radius-md);
+  border:1px dashed var(--border);
+  background:transparent;
+  color:var(--text-secondary);
+  font-size:13.5px;
+  font-weight:500;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  transition:all .18s var(--ease);
+}
+.btn-new-workflow:hover{
+  border-color:var(--accent-dim);
+  color:var(--accent);
+  background:var(--accent-soft);
+}
+
+.workflow-list{
+  flex:1;
+  overflow-y:auto;
+  padding:2px 12px 12px;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.workflow-item{
+  position:relative;
+  display:flex;
+  align-items:stretch;
+  border-radius:var(--radius-sm);
+  transition:background .16s var(--ease);
+}
+.workflow-item:hover{background:var(--bg-elevated);}
+.workflow-item.is-active{background:var(--bg-elevated-2);}
+.workflow-item.is-active::before{
+  content:"";
+  position:absolute;
+  left:0;top:8px;bottom:8px;
+  width:3px;
+  border-radius:3px;
+  background:var(--accent);
+}
+.workflow-select{
+  flex:1;
+  min-width:0;
+  background:none;
+  border:none;
+  color:inherit;
+  text-align:left;
+  padding:10px 8px 10px 14px;
+  cursor:pointer;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.workflow-name{
+  font-size:13.5px;
+  font-weight:500;
+  color:var(--text-primary);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.workflow-item.is-active .workflow-name{color:var(--accent);}
+.workflow-meta{
+  font-size:11px;
+  color:var(--text-tertiary);
+}
+.workflow-name-input{
+  width:100%;
+  background:var(--bg-deep);
+  border:1px solid var(--accent-dim);
+  border-radius:6px;
+  color:var(--text-primary);
+  font-size:13.5px;
+  font-weight:500;
+  padding:5px 8px;
+  font-family:inherit;
+}
+.workflow-item-actions{
+  display:flex;
+  align-items:center;
+  gap:2px;
+  padding:6px 8px 6px 2px;
+  opacity:0;
+  transform:translateX(4px);
+  transition:all .16s var(--ease);
+}
+.workflow-item:hover .workflow-item-actions,
+.workflow-item.is-active .workflow-item-actions{opacity:1;transform:none;}
+
+.icon-btn-sm{
+  width:26px;height:26px;
+  border-radius:7px;
+  border:none;
+  background:transparent;
+  color:var(--text-tertiary);
+  font-size:12px;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s var(--ease);
+}
+.icon-btn-sm:hover{background:var(--bg-panel);color:var(--text-primary);}
+.icon-btn-sm.icon-btn-danger:hover{color:var(--danger);background:var(--danger-soft);}
+
+.workflow-empty{
+  padding:24px 14px;
+  text-align:center;
+  color:var(--text-tertiary);
+  font-size:12.5px;
+  line-height:1.6;
+}
+
+.sidebar-footer{
+  padding:14px 16px 18px;
+  border-top:1px solid var(--border-soft);
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.btn-import{
+  padding:9px 12px;
+  border-radius:var(--radius-sm);
+  border:1px solid var(--border);
+  background:var(--bg-panel);
+  color:var(--text-secondary);
+  font-size:12.5px;
+  font-weight:500;
+  cursor:pointer;
+  text-align:center;
+  transition:all .15s var(--ease);
+  display:block;
+}
+.btn-import:hover{border-color:var(--accent-dim);color:var(--accent);}
+.sidebar-hint{
+  font-size:10.5px;
+  color:var(--text-tertiary);
+  text-align:center;
+  line-height:1.5;
+}
+
+.sidebar-backdrop{
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(5,9,16,.6);
+  backdrop-filter:blur(2px);
+  z-index:25;
+}
+
+/* ---------- Main ---------- */
+.main{
+  flex:1;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+
+.topbar{
+  height:var(--topbar-h);
+  flex:0 0 var(--topbar-h);
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:0 28px;
+  border-bottom:1px solid var(--border-soft);
+  background:rgba(10,18,32,.55);
+  backdrop-filter:blur(10px);
+}
+.hamburger{
+  display:none;
+  width:36px;height:36px;
+  border-radius:9px;
+  border:1px solid var(--border);
+  background:var(--bg-panel);
+  color:var(--text-secondary);
+  font-size:15px;
+  cursor:pointer;
+  align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.topbar-title-wrap{flex:1;min-width:0;}
+.workflow-title-input{
+  width:100%;
+  background:none;
+  border:none;
+  font-family:var(--font-display);
+  font-weight:700;
+  font-size:20px;
+  color:var(--text-primary);
+  padding:4px 2px;
+  border-radius:6px;
+}
+.workflow-title-input:hover{background:var(--bg-panel);}
+.workflow-title-input:focus{background:var(--bg-panel);outline:2px solid var(--accent);outline-offset:0;}
+.topbar-meta{
+  font-size:12px;
+  color:var(--text-tertiary);
+  margin-top:1px;
+  padding-left:2px;
+}
+.topbar-meta strong{color:var(--text-secondary);font-weight:500;}
+
+.steps-scroll{
+  flex:1;
+  overflow-y:auto;
+  padding:28px 28px 90px;
+}
+.steps-container{
+  max-width:1180px;
+  margin:0 auto;
+  display:flex;
+  flex-direction:column;
+}
+
+/* ---------- Empty states ---------- */
+.empty-state{
+  max-width:420px;
+  margin:10vh auto 0;
+  text-align:center;
+  padding:40px 32px;
+  border:1px dashed var(--border);
+  border-radius:var(--radius-lg);
+}
+.empty-state .empty-icon{font-size:34px;margin-bottom:14px;}
+.empty-state h2{font-size:18px;margin-bottom:8px;}
+.empty-state p{color:var(--text-secondary);font-size:13.5px;line-height:1.6;margin-bottom:20px;}
+.btn-primary{
+  padding:11px 20px;
+  border-radius:var(--radius-sm);
+  border:none;
+  background:linear-gradient(135deg,var(--accent),var(--accent-dim));
+  color:#032420;
+  font-weight:600;
+  font-size:13.5px;
+  cursor:pointer;
+  transition:transform .15s var(--ease),box-shadow .15s var(--ease);
+  box-shadow:0 8px 22px -8px var(--accent-glow);
+}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 12px 28px -8px var(--accent-glow);}
+
+/* ============================================================
+   STEP CARD
+   ============================================================ */
+.step-card{
+  background:var(--bg-panel);
+  border:1px solid var(--border-soft);
+  border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-md);
+  transition:border-color .18s var(--ease), transform .18s var(--ease);
+}
+.step-card.dragging{opacity:.4;}
+.step-card.drag-over-top{box-shadow:inset 0 3px 0 var(--accent);}
+.step-card.drag-over-bottom{box-shadow:inset 0 -3px 0 var(--accent);}
+
+.step-header{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:14px 16px;
+}
+.drag-handle{
+  cursor:grab;
+  color:var(--text-tertiary);
+  font-size:16px;
+  padding:4px 2px;
+  user-select:none;
+  flex-shrink:0;
+  letter-spacing:1px;
+  transition:color .15s var(--ease);
+}
+.drag-handle:hover{color:var(--accent);}
+.drag-handle:active{cursor:grabbing;}
+
+.step-badge{
+  width:26px;height:26px;
+  border-radius:8px;
+  background:var(--accent-soft);
+  color:var(--accent);
+  font-family:var(--font-display);
+  font-weight:700;
+  font-size:12.5px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+
+.step-title-input{
+  flex:1;
+  min-width:0;
+  background:none;
+  border:none;
+  font-family:var(--font-display);
+  font-weight:600;
+  font-size:15px;
+  color:var(--text-primary);
+  padding:6px 8px;
+  border-radius:6px;
+}
+.step-title-input:hover{background:var(--bg-elevated);}
+.step-title-input:focus{background:var(--bg-elevated);outline:2px solid var(--accent);outline-offset:0;}
+
+.step-header-actions{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  flex-shrink:0;
+}
+.icon-btn{
+  width:32px;height:32px;
+  border-radius:9px;
+  border:none;
+  background:transparent;
+  color:var(--text-secondary);
+  font-size:14px;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s var(--ease);
+}
+.icon-btn:hover{background:var(--bg-elevated);color:var(--text-primary);}
+.icon-btn.icon-btn-danger:hover{background:var(--danger-soft);color:var(--danger);}
+.icon-btn .chevron{transition:transform .22s var(--ease);display:inline-block;}
+.step-card.is-collapsed .icon-btn .chevron{transform:rotate(-90deg);}
+
+.step-body{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px;
+  padding:0 18px 18px;
+  overflow:hidden;
+}
+.step-body.is-collapsed{
+  display:none;
+}
+
+.field-col{display:flex;flex-direction:column;min-width:0;}
+.field-input{gap:8px;}
+.field-right{gap:14px;}
+.field-block{display:flex;flex-direction:column;gap:8px;}
+
+.field-label-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.field-label-row label{
+  font-size:11.5px;
+  font-weight:600;
+  letter-spacing:.4px;
+  text-transform:uppercase;
+  color:var(--text-tertiary);
+}
+.field-hint{
+  font-size:11px;
+  color:var(--text-tertiary);
+  opacity:.75;
+}
+.mini-btn{
+  border:1px solid var(--border);
+  background:var(--bg-elevated);
+  color:var(--accent);
+  font-family:var(--font-mono);
+  font-size:10.5px;
+  padding:4px 8px;
+  border-radius:6px;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:all .15s var(--ease);
+}
+.mini-btn:hover{border-color:var(--accent-dim);background:var(--accent-soft);}
+
+.textarea-wrap{position:relative;display:flex;}
+.field-input .textarea-wrap{flex:1;}
+
+textarea{
+  width:100%;
+  resize:none;
+  border-radius:var(--radius-md);
+  padding:12px 36px 12px 14px;
+  font-size:13.5px;
+  line-height:1.55;
+  background:var(--bg-panel-alt);
+  border:1px solid var(--border);
+  color:var(--text-primary);
+  min-height:96px;
+  transition:border-color .15s var(--ease), background .15s var(--ease);
+  font-family:var(--font-body);
+}
+.field-input textarea{min-height:220px;font-family:var(--font-body);}
+.ta-template{font-family:var(--font-mono);min-height:110px;border-color:var(--border);}
+.ta-template:focus{border-color:var(--accent-2);background:var(--bg-elevated);}
+.ta-input:focus{border-color:var(--accent-2);background:var(--bg-elevated);}
+.ta-output{
+  font-family:var(--font-mono);
+  min-height:100px;
+  background:var(--bg-panel-alt);
+  border-color:var(--border-soft);
+  color:var(--text-secondary);
+  cursor:default;
+  padding-right:14px;
+}
+textarea::placeholder{color:var(--text-tertiary);}
+
+.clear-btn{
+  position:absolute;
+  top:8px;right:8px;
+  width:22px;height:22px;
+  border-radius:6px;
+  border:none;
+  background:var(--bg-elevated);
+  color:var(--text-tertiary);
+  font-size:13px;
+  line-height:1;
+  cursor:pointer;
+  display:none;
+  align-items:center;justify-content:center;
+  transition:all .15s var(--ease);
+}
+.textarea-wrap.has-content .clear-btn{display:flex;}
+.clear-btn:hover{background:var(--danger-soft);color:var(--danger);}
+
+.field-counter{
+  font-size:10.5px;
+  color:var(--text-tertiary);
+  padding-left:2px;
+  font-family:var(--font-mono);
+}
+
+.output-wrap{position:relative;}
+.copy-btn{
+  position:absolute;
+  bottom:10px;right:10px;
+  padding:7px 12px;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background:var(--bg-elevated-2);
+  color:var(--text-primary);
+  font-size:11.5px;
+  font-weight:500;
+  cursor:pointer;
+  display:flex;align-items:center;gap:6px;
+  transition:all .16s var(--ease);
+}
+.copy-btn:hover{border-color:var(--accent-dim);color:var(--accent);}
+.copy-btn.is-copied{
+  background:var(--accent);
+  border-color:var(--accent);
+  color:#032420;
+}
+.copy-btn.is-flash{animation:copyFlash .5s var(--ease);}
+@keyframes copyFlash{
+  0%{box-shadow:0 0 0 0 var(--accent-glow);}
+  100%{box-shadow:0 0 0 10px rgba(45,212,191,0);}
+}
+
+/* ---------- Connector (chain link) ---------- */
+.connector{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  padding:2px 0;
+  height:46px;
+  position:relative;
+}
+.connector-line{
+  flex:1;
+  max-width:120px;
+  height:1px;
+  background:var(--border);
+  position:relative;
+  overflow:hidden;
+}
+.connector.is-active .connector-line{
+  background:linear-gradient(90deg,var(--accent-dim),var(--accent));
+}
+.connector.is-active .connector-line::after{
+  content:"";
+  position:absolute;
+  top:0;left:-30%;
+  width:30%;height:100%;
+  background:linear-gradient(90deg,transparent,#fff,transparent);
+  opacity:.6;
+  animation:flow 1.8s linear infinite;
+}
+@keyframes flow{
+  0%{left:-30%;}
+  100%{left:100%;}
+}
+.connector-toggle{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:6px 12px;
+  border-radius:99px;
+  border:1px solid var(--border);
+  background:var(--bg-panel);
+  color:var(--text-tertiary);
+  font-size:11px;
+  font-weight:500;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:all .18s var(--ease);
+}
+.connector-toggle:hover{border-color:var(--accent-dim);color:var(--text-secondary);}
+.connector.is-active .connector-toggle{
+  border-color:var(--accent-dim);
+  background:var(--accent-soft);
+  color:var(--accent);
+}
+.connector-icon{font-size:12px;}
+
+/* ---------- Add step button ---------- */
+.btn-add-step{
+  margin:22px auto 0;
+  padding:13px 22px;
+  border-radius:var(--radius-md);
+  border:1.5px dashed var(--border);
+  background:transparent;
+  color:var(--text-secondary);
+  font-size:13.5px;
+  font-weight:500;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  transition:all .18s var(--ease);
+  max-width:1180px;
+  width:100%;
+  justify-content:center;
+}
+.btn-add-step:hover{
+  border-color:var(--accent-dim);
+  color:var(--accent);
+  background:var(--accent-soft);
+}
+
+/* ============================================================
+   MODAL & TOAST
+   ============================================================ */
+.modal-backdrop{
+  position:fixed;inset:0;
+  background:rgba(5,9,16,.65);
+  backdrop-filter:blur(3px);
+  display:none;
+  align-items:center;justify-content:center;
+  z-index:100;
+  padding:20px;
+}
+.modal-backdrop.is-open{display:flex;}
+.modal{
+  width:100%;
+  max-width:380px;
+  background:var(--bg-panel);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  padding:24px;
+  box-shadow:var(--shadow-lg);
+  animation:modalIn .18s var(--ease);
+}
+@keyframes modalIn{
+  from{opacity:0;transform:translateY(8px) scale(.98);}
+  to{opacity:1;transform:none;}
+}
+.modal h3{font-size:16px;margin-bottom:10px;}
+.modal p{font-size:13px;color:var(--text-secondary);line-height:1.6;}
+.modal-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+  margin-top:22px;
+}
+.btn-secondary{
+  padding:9px 16px;
+  border-radius:var(--radius-sm);
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--text-secondary);
+  font-size:13px;
+  font-weight:500;
+  cursor:pointer;
+  transition:all .15s var(--ease);
+}
+.btn-secondary:hover{border-color:var(--text-tertiary);color:var(--text-primary);}
+.btn-danger{
+  padding:9px 16px;
+  border-radius:var(--radius-sm);
+  border:none;
+  background:var(--danger);
+  color:#2a0a0a;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  transition:transform .15s var(--ease);
+}
+.btn-danger:hover{transform:translateY(-1px);}
+
+.toast{
+  position:fixed;
+  bottom:22px;
+  left:50%;
+  transform:translateX(-50%) translateY(20px);
+  background:var(--bg-elevated-2);
+  border:1px solid var(--border);
+  color:var(--text-primary);
+  padding:11px 18px;
+  border-radius:99px;
+  font-size:12.5px;
+  font-weight:500;
+  box-shadow:var(--shadow-lg);
+  opacity:0;
+  pointer-events:none;
+  transition:all .25s var(--ease);
+  z-index:200;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.toast.is-visible{opacity:1;transform:translateX(-50%) translateY(0);}
+.toast::before{content:"✓";color:var(--accent);font-weight:700;}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 1024px){
+  .step-body{grid-template-columns:1fr;}
+  .field-input textarea{min-height:120px;}
+}
+
+@media (max-width: 860px){
+  .sidebar{
+    position:fixed;
+    inset:0 auto 0 0;
+    transform:translateX(-100%);
+    box-shadow:var(--shadow-lg);
+  }
+  .sidebar.is-open{transform:translateX(0);}
+  .sidebar-backdrop.is-open{display:block;}
+  .hamburger{display:flex;}
+  .topbar{padding:0 16px;}
+  .steps-scroll{padding:18px 16px 90px;}
+  .workflow-title-input{font-size:17px;}
+  .connector-line{max-width:50px;}
+  .connector-label{display:none;}
+}
+
+@media (max-width: 480px){
+  .step-header{padding:12px;flex-wrap:nowrap;}
+  .step-title-input{font-size:13.5px;}
+  .field-label-row{flex-wrap:wrap;row-gap:4px;}
+  .btn-add-step{width:100%;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="brand">
+        <div class="brand-icon">⛓</div>
+        <div class="brand-text">Prompt Chain Builder<small>Kettenwerkzeug</small></div>
+      </div>
+    </div>
+    <button class="btn-new-workflow" id="newWorkflowBtn" type="button">+ Neuer Workflow</button>
+    <div class="workflow-list" id="workflowList"></div>
+    <div class="sidebar-footer">
+      <label class="btn-import" for="importInput">⭱ Workflow importieren</label>
+      <input type="file" id="importInput" accept="application/json" hidden>
+      <div class="sidebar-hint">Alle Daten bleiben lokal in diesem Browser gespeichert.</div>
+    </div>
+  </aside>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="hamburger" id="hamburgerBtn" type="button" aria-label="Menü öffnen">☰</button>
+      <div class="topbar-title-wrap">
+        <input class="workflow-title-input" id="workflowTitleInput" type="text" aria-label="Workflow-Name" spellcheck="false">
+        <div class="topbar-meta" id="topbarMeta"></div>
+      </div>
+    </header>
+
+    <div class="steps-scroll" id="stepsScroll">
+      <div class="steps-container" id="stepsContainer"></div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <h3 id="modalTitle">Titel</h3>
+    <p id="modalMessage">Nachricht</p>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="modalCancel" type="button">Abbrechen</button>
+      <button class="btn-danger" id="modalConfirm" type="button">Löschen</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const STORAGE_KEY = "pcb-state-v1";
+let state = null;
+let dragSrcIndex = null;
+let saveTimer = null;
+let toastTimer = null;
+
+function uid(){
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,9);
+}
+
+function esc(str){
+  return String(str == null ? "" : str)
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#39;");
+}
+
+function makeStep(n, overrides){
+  return Object.assign({
+    id: uid(),
+    title: "Schritt " + n,
+    input: "",
+    template: "",
+    collapsed: false,
+    chainToNext: false
+  }, overrides || {});
+}
+
+function makeWorkflow(name, steps){
+  const now = Date.now();
+  return {
+    id: uid(),
+    name: name || "Neuer Workflow",
+    createdAt: now,
+    updatedAt: now,
+    steps: steps || [makeStep(1)]
+  };
+}
+
+function seedState(){
+  const wf1 = makeWorkflow("YouTube Video Prozess", [
+    makeStep(1, {
+      title: "Recherche & Hook",
+      input: "Thema: Nachhaltige Ernährung für Einsteiger, Zielgruppe: 20-35 Jahre",
+      template: "Du bist ein erfahrener YouTube-Stratege. Entwickle 5 knackige Hook-Ideen (erste 3 Sekunden) für folgendes Thema:\n\n[PROMPTFELD1]\n\nGib zu jedem Hook eine kurze Begründung, warum er funktioniert.",
+      chainToNext: true
+    }),
+    makeStep(2, {
+      title: "Skript-Entwurf",
+      input: "",
+      template: "Wähle den stärksten Hook aus der folgenden Liste aus und schreibe darauf aufbauend ein Skript für ein 60-Sekunden-Kurzvideo. Schreib locker und direkt, in kurzen Sätzen:\n\n[PROMPTFELD2]",
+      chainToNext: false
+    })
+  ]);
+  const wf2 = makeWorkflow("E-Mail Outbound", [
+    makeStep(1, {
+      title: "Zielperson analysieren",
+      input: "Firma: Musterbau GmbH, Rolle: Head of Operations, Branche: Bauzulieferer",
+      template: "Fasse in 3 Bulletpoints zusammen, welche typischen Herausforderungen jemand in dieser Rolle vermutlich hat:\n\n[PROMPTFELD1]",
+      chainToNext: false
+    })
+  ]);
+  return {
+    activeWorkflowId: wf1.id,
+    sidebarOpen: false,
+    workflows: { [wf1.id]: wf1, [wf2.id]: wf2 }
+  };
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return seedState();
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || !parsed.workflows) return seedState();
+    return parsed;
+  }catch(e){
+    console.warn("Konnte gespeicherten Zustand nicht laden, starte mit Beispieldaten.", e);
+    return seedState();
+  }
+}
+
+function saveStateNow(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(e){
+    console.warn("Speichern fehlgeschlagen.", e);
+  }
+}
+
+function saveStateDebounced(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveStateNow, 250);
+}
+
+function getActiveWorkflow(){
+  return state.workflows[state.activeWorkflowId] || null;
+}
+
+function touchWorkflow(wf){
+  wf.updatedAt = Date.now();
+}
+
+/* ============================================================
+   DOM REFERENCES
+   ============================================================ */
+const sidebarEl = document.getElementById("sidebar");
+const sidebarBackdrop = document.getElementById("sidebarBackdrop");
+const hamburgerBtn = document.getElementById("hamburgerBtn");
+const workflowListEl = document.getElementById("workflowList");
+const newWorkflowBtn = document.getElementById("newWorkflowBtn");
+const importInput = document.getElementById("importInput");
+const workflowTitleInput = document.getElementById("workflowTitleInput");
+const topbarMeta = document.getElementById("topbarMeta");
+const stepsContainer = document.getElementById("stepsContainer");
+const modalBackdrop = document.getElementById("modalBackdrop");
+const modalTitle = document.getElementById("modalTitle");
+const modalMessage = document.getElementById("modalMessage");
+const modalCancel = document.getElementById("modalCancel");
+const modalConfirm = document.getElementById("modalConfirm");
+const toastEl = document.getElementById("toast");
+
+/* ============================================================
+   TOAST & MODAL
+   ============================================================ */
+function showToast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add("is-visible");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> toastEl.classList.remove("is-visible"), 2400);
+}
+
+function confirmModal(title, message, confirmLabel){
+  modalTitle.textContent = title;
+  modalMessage.textContent = message;
+  modalConfirm.textContent = confirmLabel || "Löschen";
+  modalBackdrop.classList.add("is-open");
+  return new Promise((resolve)=>{
+    function cleanup(result){
+      modalBackdrop.classList.remove("is-open");
+      modalConfirm.removeEventListener("click", onConfirm);
+      modalCancel.removeEventListener("click", onCancel);
+      modalBackdrop.removeEventListener("click", onBackdrop);
+      document.removeEventListener("keydown", onKey);
+      resolve(result);
+    }
+    function onConfirm(){ cleanup(true); }
+    function onCancel(){ cleanup(false); }
+    function onBackdrop(e){ if (e.target === modalBackdrop) cleanup(false); }
+    function onKey(e){ if (e.key === "Escape") cleanup(false); }
+    modalConfirm.addEventListener("click", onConfirm);
+    modalCancel.addEventListener("click", onCancel);
+    modalBackdrop.addEventListener("click", onBackdrop);
+    document.addEventListener("keydown", onKey);
+  });
+}
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+function openSidebar(){ sidebarEl.classList.add("is-open"); sidebarBackdrop.classList.add("is-open"); }
+function closeSidebar(){ sidebarEl.classList.remove("is-open"); sidebarBackdrop.classList.remove("is-open"); }
+hamburgerBtn.addEventListener("click", openSidebar);
+sidebarBackdrop.addEventListener("click", closeSidebar);
+
+function renderSidebar(){
+  const workflows = Object.values(state.workflows).sort((a,b)=> b.updatedAt - a.updatedAt);
+  if (workflows.length === 0){
+    workflowListEl.innerHTML = '<div class="workflow-empty">Noch keine Workflows vorhanden.<br>Erstelle deinen ersten Workflow.</div>';
+    return;
+  }
+  workflowListEl.innerHTML = workflows.map(wf => {
+    const active = wf.id === state.activeWorkflowId;
+    const count = wf.steps.length;
+    return (
+      '<div class="workflow-item' + (active ? ' is-active' : '') + '" data-workflow-id="' + wf.id + '">' +
+        '<button class="workflow-select" data-action="select-workflow" type="button">' +
+          '<span class="workflow-name">' + esc(wf.name) + '</span>' +
+          '<span class="workflow-meta">' + count + (count === 1 ? ' Schritt' : ' Schritte') + '</span>' +
+        '</button>' +
+        '<div class="workflow-item-actions">' +
+          '<button class="icon-btn-sm" data-action="rename-workflow" type="button" title="Umbenennen">✎</button>' +
+          '<button class="icon-btn-sm" data-action="export-workflow" type="button" title="Exportieren">⭳</button>' +
+          '<button class="icon-btn-sm icon-btn-danger" data-action="delete-workflow" type="button" title="Löschen">🗑</button>' +
+        '</div>' +
+      '</div>'
+    );
+  }).join("");
+}
+
+workflowListEl.addEventListener("click", async (e)=>{
+  const btn = e.target.closest("[data-action]");
+  const item = e.target.closest(".workflow-item");
+  if (!item) return;
+  const wfId = item.dataset.workflowId;
+  const wf = state.workflows[wfId];
+  if (!btn){
+    setActiveWorkflow(wfId);
+    return;
+  }
+  const action = btn.dataset.action;
+  if (action === "select-workflow"){
+    setActiveWorkflow(wfId);
+  } else if (action === "rename-workflow"){
+    startRenameWorkflowInSidebar(item, wf);
+  } else if (action === "export-workflow"){
+    exportWorkflow(wf);
+  } else if (action === "delete-workflow"){
+    const ok = await confirmModal(
+      "Workflow löschen",
+      'Möchtest du „' + wf.name + '" wirklich löschen? Alle Schritte gehen dabei verloren. Dies kann nicht rückgängig gemacht werden.',
+      "Löschen"
+    );
+    if (ok) deleteWorkflow(wfId);
+  }
+});
+
+function startRenameWorkflowInSidebar(itemEl, wf){
+  const nameSpan = itemEl.querySelector(".workflow-name");
+  if (!nameSpan) return;
+  const input = document.createElement("input");
+  input.className = "workflow-name-input";
+  input.value = wf.name;
+  nameSpan.replaceWith(input);
+  input.focus();
+  input.select();
+  function commit(){
+    const val = input.value.trim() || "Unbenannter Workflow";
+    wf.name = val;
+    touchWorkflow(wf);
+    saveStateNow();
+    renderSidebar();
+    if (wf.id === state.activeWorkflowId) syncTopbar();
+  }
+  input.addEventListener("keydown", (e)=>{
+    if (e.key === "Enter") input.blur();
+    if (e.key === "Escape"){ input.value = wf.name; input.blur(); }
+  });
+  input.addEventListener("blur", commit, { once:true });
+}
+
+function setActiveWorkflow(id){
+  if (!state.workflows[id]) return;
+  state.activeWorkflowId = id;
+  saveStateNow();
+  closeSidebar();
+  renderSidebar();
+  renderMain();
+}
+
+function newWorkflow(){
+  const wf = makeWorkflow("Neuer Workflow");
+  state.workflows[wf.id] = wf;
+  state.activeWorkflowId = wf.id;
+  saveStateNow();
+  renderSidebar();
+  renderMain();
+  workflowTitleInput.focus();
+  workflowTitleInput.select();
+}
+newWorkflowBtn.addEventListener("click", newWorkflow);
+
+async function deleteWorkflow(id){
+  delete state.workflows[id];
+  const remaining = Object.values(state.workflows).sort((a,b)=> b.updatedAt - a.updatedAt);
+  state.activeWorkflowId = remaining.length ? remaining[0].id : null;
+  saveStateNow();
+  renderSidebar();
+  renderMain();
+  showToast("Workflow gelöscht");
+}
+
+/* ---------- Export / Import ---------- */
+function downloadJson(filename, dataObj){
+  const blob = new Blob([JSON.stringify(dataObj, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=> URL.revokeObjectURL(url), 1000);
+}
+
+function slugify(name){
+  return (name || "workflow").toLowerCase()
+    .replace(/[^a-z0-9äöüß\-_ ]/g,"")
+    .trim().replace(/\s+/g,"-").slice(0,60) || "workflow";
+}
+
+function exportWorkflow(wf){
+  downloadJson(slugify(wf.name) + ".json", {
+    app: "prompt-chain-builder",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    workflow: wf
+  });
+  showToast("Workflow exportiert");
+}
+
+importInput.addEventListener("change", async (e)=>{
+  const file = e.target.files[0];
+  if (!file) return;
+  try{
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const incoming = [];
+    if (Array.isArray(data)) incoming.push(...data);
+    else if (data.workflows && typeof data.workflows === "object") incoming.push(...Object.values(data.workflows));
+    else if (data.workflow) incoming.push(data.workflow);
+    else if (data.steps) incoming.push(data);
+    else throw new Error("Unbekanntes Format");
+
+    let lastId = null;
+    incoming.forEach(raw => {
+      const steps = Array.isArray(raw.steps) && raw.steps.length
+        ? raw.steps.map((s, i)=> makeStep(i+1, {
+            title: s.title || ("Schritt " + (i+1)),
+            input: s.input || "",
+            template: s.template || "",
+            collapsed: !!s.collapsed,
+            chainToNext: !!s.chainToNext
+          }))
+        : [makeStep(1)];
+      const wf = makeWorkflow((raw.name || "Importierter Workflow"), steps);
+      state.workflows[wf.id] = wf;
+      lastId = wf.id;
+    });
+    if (lastId) state.activeWorkflowId = lastId;
+    saveStateNow();
+    renderSidebar();
+    renderMain();
+    showToast(incoming.length > 1 ? "Workflows importiert" : "Workflow importiert");
+  }catch(err){
+    console.warn(err);
+    await confirmModal("Import fehlgeschlagen", "Die Datei konnte nicht gelesen werden. Bitte stelle sicher, dass es sich um eine gültige Export-Datei aus dem Prompt Chain Builder handelt.", "OK");
+  }finally{
+    importInput.value = "";
+  }
+});
+
+/* ============================================================
+   TOPBAR
+   ============================================================ */
+function syncTopbar(){
+  const wf = getActiveWorkflow();
+  if (!wf){
+    workflowTitleInput.value = "";
+    workflowTitleInput.disabled = true;
+    topbarMeta.textContent = "";
+    return;
+  }
+  workflowTitleInput.disabled = false;
+  workflowTitleInput.value = wf.name;
+  const n = wf.steps.length;
+  topbarMeta.innerHTML = '<strong>' + n + '</strong> ' + (n === 1 ? 'Schritt' : 'Schritte') + ' · zuletzt bearbeitet ' + relativeTime(wf.updatedAt);
+}
+
+function relativeTime(ts){
+  const diff = Math.max(0, Date.now() - ts);
+  const min = Math.floor(diff/60000);
+  if (min < 1) return "gerade eben";
+  if (min < 60) return "vor " + min + " Min.";
+  const h = Math.floor(min/60);
+  if (h < 24) return "vor " + h + " Std.";
+  const d = Math.floor(h/24);
+  return "vor " + d + " Tag" + (d===1?"":"en");
+}
+
+workflowTitleInput.addEventListener("input", ()=>{
+  const wf = getActiveWorkflow();
+  if (!wf) return;
+  wf.name = workflowTitleInput.value;
+  touchWorkflow(wf);
+  saveStateDebounced();
+  const item = workflowListEl.querySelector('[data-workflow-id="'+wf.id+'"] .workflow-name');
+  if (item) item.textContent = wf.name || "Unbenannter Workflow";
+});
+workflowTitleInput.addEventListener("blur", ()=>{
+  const wf = getActiveWorkflow();
+  if (!wf) return;
+  if (!wf.name.trim()) { wf.name = "Unbenannter Workflow"; workflowTitleInput.value = wf.name; }
+  saveStateNow();
+  renderSidebar();
+});
+workflowTitleInput.addEventListener("keydown", (e)=>{ if (e.key === "Enter") workflowTitleInput.blur(); });
+
+/* ============================================================
+   STEP COMPUTATION
+   ============================================================ */
+function computeOutput(step){
+  if (!step.template) return "";
+  return step.template.replace(/\[PROMPTFELD\d+\]/g, function(){ return step.input || ""; });
+}
+
+function recomputeChain(wf){
+  wf.steps.forEach((step, i)=>{
+    if (step.chainToNext && wf.steps[i+1]){
+      wf.steps[i+1].input = computeOutput(step);
+    }
+  });
+}
+
+/* ============================================================
+   MAIN RENDER (full rebuild — used on structural changes)
+   ============================================================ */
+function renderMain(){
+  syncTopbar();
+  const wf = getActiveWorkflow();
+
+  if (!wf){
+    stepsContainer.innerHTML =
+      '<div class="empty-state">' +
+        '<div class="empty-icon">⛓️‍💥</div>' +
+        '<h2>Kein Workflow ausgewählt</h2>' +
+        '<p>Erstelle einen neuen Workflow, um deine erste Prompt-Kette zu bauen.</p>' +
+        '<button class="btn-primary" id="emptyCreateBtn" type="button">+ Workflow erstellen</button>' +
+      '</div>';
+    const btn = document.getElementById("emptyCreateBtn");
+    if (btn) btn.addEventListener("click", newWorkflow);
+    return;
+  }
+
+  recomputeChain(wf);
+
+  const n = wf.steps.length;
+  const cardsHtml = wf.steps.map((step, i)=> stepCardHtml(step, i, n)).join("");
+  const addBtnHtml = '<button class="btn-add-step" id="addStepBtn" type="button">+ Weiteren Schritt hinzufügen</button>';
+  stepsContainer.innerHTML = cardsHtml + addBtnHtml;
+
+  document.getElementById("addStepBtn").addEventListener("click", addStep);
+
+  // post-render: autosize + counters + output values
+  stepsContainer.querySelectorAll(".step-card").forEach((card)=>{
+    const idx = +card.dataset.index;
+    const step = wf.steps[idx];
+    const taInput = card.querySelector(".ta-input");
+    const taTemplate = card.querySelector(".ta-template");
+    const taOutput = card.querySelector(".ta-output");
+    taOutput.value = computeOutput(step);
+    [taInput, taTemplate, taOutput].forEach(autoGrow);
+    updateCounter(card, "input", taInput.value);
+    updateCounter(card, "template", taTemplate.value);
+    updateCounter(card, "output", taOutput.value);
+    updateClearVisibility(taInput);
+    updateClearVisibility(taTemplate);
+  });
+}
+
+function stepCardHtml(step, i, total){
+  const num = i + 1;
+  const chevron = '<span class="chevron">▾</span>';
+  let html =
+    '<div class="step-card' + (step.collapsed ? ' is-collapsed' : '') + '" data-id="' + step.id + '" data-index="' + i + '">' +
+      '<div class="step-header">' +
+        '<span class="drag-handle" draggable="true" title="Ziehen zum Verschieben">⠿⠿</span>' +
+        '<span class="step-badge">' + num + '</span>' +
+        '<input class="step-title-input" data-action="title" value="' + esc(step.title) + '" spellcheck="false" aria-label="Titel für Schritt ' + num + '">' +
+        '<div class="step-header-actions">' +
+          '<button class="icon-btn" data-action="collapse" type="button" title="Ein-/Ausklappen">' + chevron + '</button>' +
+          '<button class="icon-btn icon-btn-danger" data-action="delete-step" type="button" title="Schritt löschen">🗑</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="step-body' + (step.collapsed ? ' is-collapsed' : '') + '">' +
+        '<div class="field-col field-input">' +
+          '<div class="field-label-row"><label>Input</label><span class="field-hint">Text oder Ergebnis aus Vorstufe</span></div>' +
+          '<div class="textarea-wrap">' +
+            '<textarea class="ta-input" data-role="input" placeholder="Füge hier deinen Ausgangstext ein …" aria-label="Input für Schritt ' + num + '">' + esc(step.input) + '</textarea>' +
+            '<button class="clear-btn" data-action="clear-input" type="button" title="Leeren">×</button>' +
+          '</div>' +
+          '<div class="field-counter" data-role="input-counter"></div>' +
+        '</div>' +
+        '<div class="field-col field-right">' +
+          '<div class="field-block">' +
+            '<div class="field-label-row">' +
+              '<label>Prompt-Vorlage</label>' +
+              '<button class="mini-btn" data-action="insert-placeholder" type="button">+ [PROMPTFELD' + num + ']</button>' +
+            '</div>' +
+            '<div class="textarea-wrap">' +
+              '<textarea class="ta-template" data-role="template" placeholder="z. B.: Fasse folgenden Text zusammen: [PROMPTFELD' + num + ']" aria-label="Prompt-Vorlage für Schritt ' + num + '">' + esc(step.template) + '</textarea>' +
+              '<button class="clear-btn" data-action="clear-template" type="button" title="Leeren">×</button>' +
+            '</div>' +
+            '<div class="field-counter" data-role="template-counter"></div>' +
+          '</div>' +
+          '<div class="field-block">' +
+            '<div class="field-label-row"><label>Fertiger Prompt</label><span class="field-hint">Strg+Enter zum Kopieren</span></div>' +
+            '<div class="textarea-wrap output-wrap">' +
+              '<textarea class="ta-output" data-role="output" readonly aria-label="Fertiger Prompt für Schritt ' + num + '"></textarea>' +
+              '<button class="copy-btn" data-action="copy-output" type="button">📋 Kopieren</button>' +
+            '</div>' +
+            '<div class="field-counter" data-role="output-counter"></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  if (i < total - 1){
+    const active = step.chainToNext;
+    html +=
+      '<div class="connector' + (active ? ' is-active' : '') + '" data-connector-index="' + i + '">' +
+        '<div class="connector-line"></div>' +
+        '<button class="connector-toggle" data-action="toggle-chain" type="button" title="Output automatisch als Input für den nächsten Schritt übernehmen">' +
+          '<span class="connector-icon">' + (active ? '🔗' : '⛓️‍💥') + '</span>' +
+          '<span class="connector-label">' + (active ? 'Verkettet' : 'Verketten') + '</span>' +
+        '</button>' +
+        '<div class="connector-line"></div>' +
+      '</div>';
+  }
+  return html;
+}
+
+/* ---------- helpers used after render / on input ---------- */
+function autoGrow(el){
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+
+function countWords(text){
+  const t = text.trim();
+  return t ? t.split(/\s+/).length : 0;
+}
+
+function updateCounter(card, role, value){
+  const el = card.querySelector('[data-role="' + role + '-counter"]');
+  if (!el) return;
+  el.textContent = value.length + " Zeichen · " + countWords(value) + " Wörter";
+}
+
+function updateClearVisibility(textarea){
+  const wrap = textarea.closest(".textarea-wrap");
+  if (!wrap) return;
+  wrap.classList.toggle("has-content", textarea.value.length > 0);
+}
+
+/* ============================================================
+   STEP ACTIONS (structural — trigger full re-render)
+   ============================================================ */
+function addStep(){
+  const wf = getActiveWorkflow();
+  if (!wf) return;
+  wf.steps.push(makeStep(wf.steps.length + 1));
+  touchWorkflow(wf);
+  saveStateNow();
+  renderSidebar();
+  renderMain();
+  const cards = stepsContainer.querySelectorAll(".step-card");
+  const last = cards[cards.length - 1];
+  if (last){
+    last.scrollIntoView({ behavior:"smooth", block:"center" });
+    const ta = last.querySelector(".ta-input");
+    if (ta) ta.focus();
+  }
+}
+
+async function deleteStep(card){
+  const wf = getActiveWorkflow();
+  if (!wf) return;
+  const idx = +card.dataset.index;
+  const step = wf.steps[idx];
+  if (!step) return;
+  const hasContent = (step.input && step.input.trim()) || (step.template && step.template.trim());
+  if (hasContent){
+    const ok = await confirmModal("Schritt löschen", 'Möchtest du „' + step.title + '" wirklich löschen? Eingegebener Text geht dabei verloren.', "Löschen");
+    if (!ok) return;
+  }
+  wf.steps.splice(idx, 1);
+  if (wf.steps.length === 0) wf.steps.push(makeStep(1));
+  touchWorkflow(wf);
+  saveStateNow();
+  renderSidebar();
+  renderMain();
+}
+
+function reorderSteps(fromIndex, toIndex, before){
+  const wf = getActiveWorkflow();
+  if (!wf) return;
+  if (fromIndex === null || fromIndex === undefined) return;
+  const steps = wf.steps;
+  const moving = steps[fromIndex];
+  if (!moving) return;
+  let insertAt = toIndex + (before ? 0 : 1);
+  steps.splice(fromIndex, 1);
+  if (fromIndex < insertAt) insertAt -= 1;
+  steps.splice(insertAt, 0, moving);
+  touchWorkflow(wf);
+  saveStateNow();
+  renderMain();
+}
+
+/* ============================================================
+   STEP ACTIONS (in-place — no full re-render, preserves focus)
+   ============================================================ */
+function handleInputChange(card, textarea){
+  const wf = getActiveWorkflow();
+  if (!wf) return;
+  const idx = +card.dataset.index;
+  const step = wf.steps[idx];
+  if (!step) return;
+  step.input = textarea.value;
+  autoGrow(textarea);
+  updateCounter(card, "input", textarea.value);
+  updateClearVisibility(textarea);
+  updateOutputForCard(card, step);
+  touchWorkflow(wf);
+  saveStateDebounced();
+}
+
+function handleTemplateChange(card, textarea){
+  const wf = getActiveWorkflow();
+  if (!wf) return;
+  const idx = +card.dataset.index;
+  const step = wf.steps[idx];
+  if (!step) return;
+  step.template = textarea.value;
+  autoGrow(textarea);
+  updateCounter(card, "template", textarea.value);
+  updateClearVisibility(textarea);
+  updateOutputForCard(card, step);
+  touchWorkflow(wf);
+  saveStateDebounced();
+}
+
+function updateOutputForCard(card, step){
+  const taOutput = card.querySelector(".ta-output");
+  const output = computeOutput(step);
+  taOutput.value = output;
+  autoGrow(taOutput);
+  updateCounter(card, "output", output);
+  cascadeChain(card, step, output);
+}
+
+function cascadeChain(card, step, output){
+  if (!step.chainToNext) return;
+  const wf = getActiveWorkflow();
+  if (!wf) return;
+  const idx = +card.dataset.index;
+  const nextStep = wf.steps[idx + 1];
+  if (!nextStep) return;
+  nextStep.input = output;
+  const nextCard = stepsContainer.querySelector('.step-card[data-index="' + (idx + 1) + '"]');
+  if (nextCard){
+    const nextTa = nextCard.querySelector(".ta-input");
+    if (nextTa && document.activeElement !== nextTa){
+      nextTa.value = output;
+      autoGrow(nextTa);
+      updateCounter(nextCard, "input", output);
+      updateClearVisibility(nextTa);
+    }
+    updateOutputForCard(nextCard, nextStep);
+  }
+}
+
+function handleTitleChange(card, input){
+  const wf = getActiveWorkflow();
+  if (!wf) return;
+  const idx = +card.dataset.index;
+  const step = wf.steps[idx];
+  if (!step) return;
+  step.title = input.value;
+}
+
+function commitTitle(card){
+  const wf = getActiveWorkflow();
+  if (!wf) return;
+  const idx = +card.dataset.index;
+  const step = wf.steps[idx];
+  const input = card.querySelector(".step-title-input");
+  if (!step || !input) return;
+  const val = input.value.trim() || ("Schritt " + (idx + 1));
+  step.title = val;
+  input.value = val;
+  touchWorkflow(wf);
+  saveStateNow();
+}
+
+function toggleCollapse(card){
+  const wf = getActiveWorkflow();
+  if (!wf) return;
+  const idx = +card.dataset.index;
+  const step = wf.steps[idx];
+  if (!step) return;
+  step.collapsed = !step.collapsed;
+  card.classList.toggle("is-collapsed", step.collapsed);
+  card.querySelector(".step-body").classList.toggle("is-collapsed", step.collapsed);
+  saveStateDebounced();
+}
+
+function clearTextarea(card, role){
+  const ta = card.querySelector('[data-role="' + role + '"]');
+  if (!ta) return;
+  ta.value = "";
+  ta.dispatchEvent(new Event("input", { bubbles:true }));
+  ta.focus();
+}
+
+function insertPlaceholder(card){
+  const idx = +card.dataset.index;
+  const ta = card.querySelector(".ta-template");
+  if (!ta) return;
+  const token = "[PROMPTFELD" + (idx + 1) + "]";
+  const start = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
+  const end = ta.selectionEnd != null ? ta.selectionEnd : ta.value.length;
+  ta.value = ta.value.slice(0, start) + token + ta.value.slice(end);
+  ta.focus();
+  const pos = start + token.length;
+  ta.setSelectionRange(pos, pos);
+  ta.dispatchEvent(new Event("input", { bubbles:true }));
+}
+
+async function copyText(text){
+  try{
+    await navigator.clipboard.writeText(text);
+    return true;
+  }catch(e){
+    try{
+      const temp = document.createElement("textarea");
+      temp.value = text;
+      temp.style.position = "fixed";
+      temp.style.opacity = "0";
+      document.body.appendChild(temp);
+      temp.focus();
+      temp.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(temp);
+      return ok;
+    }catch(err){
+      return false;
+    }
+  }
+}
+
+async function copyOutput(card, btn){
+  const output = card.querySelector(".ta-output").value;
+  const ok = await copyText(output);
+  if (!btn) return;
+  const original = btn.innerHTML;
+  if (ok){
+    btn.innerHTML = "✓ Kopiert!";
+    btn.classList.add("is-copied", "is-flash");
+  } else {
+    btn.innerHTML = "Fehlgeschlagen";
+  }
+  setTimeout(()=>{
+    btn.innerHTML = original;
+    btn.classList.remove("is-copied", "is-flash");
+  }, 1400);
+}
+
+function toggleChain(connector){
+  const wf = getActiveWorkflow();
+  if (!wf || !connector) return;
+  const idx = +connector.dataset.connectorIndex;
+  const step = wf.steps[idx];
+  if (!step) return;
+  step.chainToNext = !step.chainToNext;
+  touchWorkflow(wf);
+  saveStateNow();
+  renderMain();
+}
+
+/* ============================================================
+   EVENT DELEGATION (attached once)
+   ============================================================ */
+stepsContainer.addEventListener("click", async (e)=>{
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const card = e.target.closest(".step-card");
+  const connector = e.target.closest(".connector");
+
+  if (action === "toggle-chain"){ toggleChain(connector); return; }
+  if (!card) return;
+
+  switch(action){
+    case "collapse": toggleCollapse(card); break;
+    case "delete-step": await deleteStep(card); break;
+    case "clear-input": clearTextarea(card, "input"); break;
+    case "clear-template": clearTextarea(card, "template"); break;
+    case "copy-output": await copyOutput(card, btn); break;
+    case "insert-placeholder": insertPlaceholder(card); break;
+  }
+});
+
+stepsContainer.addEventListener("input", (e)=>{
+  const card = e.target.closest(".step-card");
+  if (!card) return;
+  if (e.target.matches(".ta-input")) handleInputChange(card, e.target);
+  else if (e.target.matches(".ta-template")) handleTemplateChange(card, e.target);
+  else if (e.target.matches(".step-title-input")) handleTitleChange(card, e.target);
+});
+
+stepsContainer.addEventListener("keydown", (e)=>{
+  if (e.target.matches(".ta-template") && (e.ctrlKey || e.metaKey) && e.key === "Enter"){
+    e.preventDefault();
+    const card = e.target.closest(".step-card");
+    if (card){
+      const copyBtn = card.querySelector('[data-action="copy-output"]');
+      copyOutput(card, copyBtn);
+    }
+  }
+  if (e.target.matches(".step-title-input") && e.key === "Enter"){
+    e.preventDefault();
+    e.target.blur();
+  }
+});
+
+stepsContainer.addEventListener("focusout", (e)=>{
+  if (e.target.matches(".step-title-input")){
+    const card = e.target.closest(".step-card");
+    if (card) commitTitle(card);
+  }
+});
+
+/* ---------- Drag & drop reordering ---------- */
+stepsContainer.addEventListener("dragstart", (e)=>{
+  if (!e.target.matches(".drag-handle")) return;
+  const card = e.target.closest(".step-card");
+  if (!card) return;
+  dragSrcIndex = +card.dataset.index;
+  card.classList.add("dragging");
+  e.dataTransfer.effectAllowed = "move";
+  try{ e.dataTransfer.setData("text/plain", String(dragSrcIndex)); }catch(err){}
+});
+
+stepsContainer.addEventListener("dragover", (e)=>{
+  const card = e.target.closest(".step-card");
+  if (!card) return;
+  e.preventDefault();
+  const rect = card.getBoundingClientRect();
+  const before = (e.clientY - rect.top) < rect.height / 2;
+  card.classList.toggle("drag-over-top", before);
+  card.classList.toggle("drag-over-bottom", !before);
+});
+
+stepsContainer.addEventListener("dragleave", (e)=>{
+  const card = e.target.closest(".step-card");
+  if (card){ card.classList.remove("drag-over-top", "drag-over-bottom"); }
+});
+
+stepsContainer.addEventListener("drop", (e)=>{
+  const card = e.target.closest(".step-card");
+  if (!card){ dragSrcIndex = null; return; }
+  e.preventDefault();
+  const targetIndex = +card.dataset.index;
+  const before = card.classList.contains("drag-over-top");
+  card.classList.remove("drag-over-top", "drag-over-bottom");
+  if (dragSrcIndex !== null && dragSrcIndex !== targetIndex){
+    reorderSteps(dragSrcIndex, targetIndex, before);
+  }
+  dragSrcIndex = null;
+});
+
+stepsContainer.addEventListener("dragend", ()=>{
+  stepsContainer.querySelectorAll(".step-card").forEach((c)=>{
+    c.classList.remove("dragging", "drag-over-top", "drag-over-bottom");
+  });
+  dragSrcIndex = null;
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+function init(){
+  state = loadState();
+  if (!state.activeWorkflowId || !state.workflows[state.activeWorkflowId]){
+    const first = Object.values(state.workflows)[0];
+    state.activeWorkflowId = first ? first.id : null;
+  }
+  renderSidebar();
+  renderMain();
+
+  window.addEventListener("resize", ()=>{
+    stepsContainer.querySelectorAll("textarea").forEach(autoGrow);
+  });
+
+  window.addEventListener("beforeunload", saveStateNow);
+}
+
+init();
+
+})();
+</script>
+</body>
+</html>
