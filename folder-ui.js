@@ -6,8 +6,6 @@
   const list = document.getElementById("workflowList");
   if (!api || !list) return;
 
-  // Keep the existing sidebar layout and only add the small folder-specific
-  // controls/styles required for navigation.
   const style = document.createElement("style");
   style.textContent = `
     .folder-toolbar{display:flex;gap:8px;margin:0 16px 12px}
@@ -107,14 +105,14 @@
   }
 
   function workflowHtmlFor(w, activeWorkflowId){
-    return '<div class="workflow-item '+(w.id===activeWorkflowId?'is-active':'')+'" data-id="'+esc(w.id)+'">' +
+    return '<div class="workflow-item '+(w.id===activeWorkflowId?'is-active':'')+'" data-id="'+esc(w.id)+'" draggable="true">' +
       '<button class="workflow-select" type="button" data-action="select">' +
         '<span class="workflow-name">'+esc(w.name)+'</span>' +
         '<span class="workflow-meta">'+(Array.isArray(w.steps)?w.steps.length:0)+(Array.isArray(w.steps)&&w.steps.length===1?' Schritt':' Schritte')+'</span>' +
       '</button>' +
       '<div class="workflow-item-actions">' +
         '<button class="icon-btn-sm" type="button" data-action="rename" title="Umbenennen">✎</button>' +
-        '<button class="icon-btn-sm" type="button" data-action="move" title="In Ordner verschieben">↗</button>' +
+        '<button class="icon-btn-sm" type="button" data-action="deeplink" title="Deep Link kopieren">🔗</button>' +
         '<button class="icon-btn-sm" type="button" data-action="export" title="Exportieren">⭳</button>' +
         '<button class="icon-btn-sm icon-btn-danger" type="button" data-action="delete" title="Löschen">🗑</button>' +
       '</div>' +
@@ -196,6 +194,22 @@
     }
   }
 
+  function copyDeepLink(workflowId){
+    if (typeof window.createWorkflowDeepLink !== "function") {
+      window.alert("Deep Link ist noch nicht verfügbar.");
+      return;
+    }
+    const url = window.createWorkflowDeepLink(workflowId);
+    if (!url) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function(){
+        if (typeof window.showToast === "function") window.showToast("Deep Link kopiert");
+      }).catch(function(){ window.prompt("Deep Link:", url); });
+    } else {
+      window.prompt("Deep Link:", url);
+    }
+  }
+
   function moveWorkflow(workflowId){
     const state = readState();
     const workflow = state.workflows && state.workflows[workflowId];
@@ -234,11 +248,20 @@
 
   list.addEventListener("click", function(e){
     const action = e.target.closest('[data-action="move"]');
-    if (!action) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const item = action.closest(".workflow-item");
-    if (item) moveWorkflow(item.dataset.id);
+    if (action) {
+      e.preventDefault();
+      e.stopPropagation();
+      const item = action.closest(".workflow-item");
+      if (item) moveWorkflow(item.dataset.id);
+      return;
+    }
+    const linkAction = e.target.closest('[data-action="deeplink"]');
+    if (linkAction) {
+      e.preventDefault();
+      e.stopPropagation();
+      const item = linkAction.closest(".workflow-item");
+      if (item) copyDeepLink(item.dataset.id);
+    }
   }, true);
 
   if (newFolderBtn) newFolderBtn.addEventListener("click", createFolder);
