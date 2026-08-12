@@ -72,6 +72,8 @@
       const active = state.workflows[state.activeWorkflowId];
       state.activeFolderId = active && getFolderById(state, active.folderId) ? active.folderId : systemFolder.id;
     }
+    if (!state.folderExpanded || typeof state.folderExpanded !== "object") state.folderExpanded = {};
+    if (state.folderExpanded[systemFolder.id] == null) state.folderExpanded[systemFolder.id] = true;
     return state;
   }
 
@@ -103,6 +105,7 @@
       if (workflow && workflow.folderId === folderId) workflow.folderId = systemFolder.id;
     });
     state.folders = state.folders.filter(item => item.id !== folderId);
+    delete state.folderExpanded[folderId];
     if (state.activeFolderId === folderId) state.activeFolderId = systemFolder.id;
     return systemFolder.id;
   }
@@ -113,6 +116,7 @@
     if (!getFolderById(state, folderId)) throw new Error("Ungültige folderId.");
     workflow.folderId = folderId;
     workflow.updatedAt = now();
+    state.activeFolderId = folderId;
     return workflow;
   }
 
@@ -134,4 +138,12 @@
     migrateState,
     ensureSystemFolder
   };
+
+  // Chunk 2 keeps the existing workflow editor intact and layers the folder
+  // navigation onto the existing sidebar/list. The UI module is loaded after
+  // the state API exists, so no framework or workflow-engine changes are needed.
+  const folderUiScript = document.createElement("script");
+  folderUiScript.src = "./folder-ui.js";
+  folderUiScript.defer = false;
+  document.body.appendChild(folderUiScript);
 })();
