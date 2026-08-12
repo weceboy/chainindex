@@ -4,8 +4,37 @@
   const STORAGE_KEY = "pcb-state-v1";
   const api = window.ChainIndexFolderState;
   const list = document.getElementById("workflowList");
-  const newFolderBtn = document.getElementById("newFolderBtn");
   if (!api || !list) return;
+
+  // Keep the existing sidebar layout and only add the small folder-specific
+  // controls/styles required for navigation.
+  const style = document.createElement("style");
+  style.textContent = `
+    .folder-toolbar{display:flex;gap:8px;margin:0 16px 12px}
+    .btn-new-folder{flex:1;padding:9px 12px;border-radius:var(--radius-md);border:1px dashed var(--border);background:transparent;color:var(--text-secondary);font-size:12.5px}
+    .btn-new-folder:hover{border-color:var(--accent-dim);color:var(--accent);background:var(--accent-soft)}
+    .folder-group{border-radius:var(--radius-sm);margin-bottom:4px}
+    .folder-group:hover{background:rgba(23,41,63,.32)}
+    .folder-header{display:flex;align-items:center;min-height:38px;border-radius:var(--radius-sm)}
+    .folder-toggle{flex:1;min-width:0;display:flex;align-items:center;gap:7px;padding:8px 6px 8px 7px;border:0;background:transparent;color:var(--text-primary);text-align:left;font-size:12.5px;font-weight:600}
+    .folder-toggle:hover{color:var(--accent)}
+    .folder-chevron{width:11px;color:var(--text-tertiary);font-size:9px}
+    .folder-icon{font-size:14px;line-height:1}
+    .folder-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .folder-actions{display:flex;gap:1px;padding-right:4px}
+    .folder-empty{padding:5px 12px 7px 31px;color:var(--text-tertiary);font-size:10.5px;font-style:italic}
+    .folder-workflows{min-width:0}
+    .folder-workflows .workflow-item{margin-left:10px}
+    .folder-name-input{flex:1;min-width:0;margin:3px 4px 3px 24px;padding:5px 7px;background:var(--bg-deep);border:1px solid var(--accent-dim);border-radius:6px;font-size:12.5px}
+  `;
+  document.head.appendChild(style);
+
+  const originalNewWorkflow = document.getElementById("newWorkflowBtn");
+  const toolbar = document.createElement("div");
+  toolbar.className = "folder-toolbar";
+  toolbar.innerHTML = '<button class="btn-new-folder" id="newFolderBtn" type="button">+ Neuer Ordner</button>';
+  if (originalNewWorkflow) originalNewWorkflow.insertAdjacentElement("afterend", toolbar);
+  const newFolderBtn = document.getElementById("newFolderBtn");
 
   function readState(){
     try {
@@ -55,7 +84,7 @@
         .sort(function(a,b){ return (b.updatedAt || 0) - (a.updatedAt || 0); });
       const workflowHtml = expanded
         ? (items.length
-          ? items.map(workflowHtmlFor).join("")
+          ? items.map(function(w){ return workflowHtmlFor(w, state.activeWorkflowId); }).join("")
           : '<div class="folder-empty">Keine Workflows</div>')
         : "";
       const actions = folder.system ? "" :
@@ -77,8 +106,8 @@
     }).join("");
   }
 
-  function workflowHtmlFor(w){
-    return '<div class="workflow-item '+(w.id===readState().activeWorkflowId?'is-active':'')+'" data-id="'+esc(w.id)+'">' +
+  function workflowHtmlFor(w, activeWorkflowId){
+    return '<div class="workflow-item '+(w.id===activeWorkflowId?'is-active':'')+'" data-id="'+esc(w.id)+'">' +
       '<button class="workflow-select" type="button" data-action="select">' +
         '<span class="workflow-name">'+esc(w.name)+'</span>' +
         '<span class="workflow-meta">'+(Array.isArray(w.steps)?w.steps.length:0)+(Array.isArray(w.steps)&&w.steps.length===1?' Schritt':' Schritte')+'</span>' +
@@ -129,10 +158,10 @@
     const nameEl = group.querySelector(".folder-name");
     nameEl.replaceWith(input);
     input.focus(); input.select();
-    let cancelled = false;
+    let finished = false;
     function finish(commit){
-      if (cancelled) return;
-      cancelled = true;
+      if (finished) return;
+      finished = true;
       if (!commit){ render(); return; }
       try {
         api.renameFolder(state, id, input.value);
@@ -156,7 +185,8 @@
     const folder = api.getFolderById(state, id);
     if (!folder || folder.system) return;
     const count = api.getWorkflowsForFolder(state, id).length;
-    if (!window.confirm('Ordner „'+folder.name+'" löschen?'+(count ? " Die "+count+" enthaltenen Workflows werden nach „Unsortiert“ verschoben." : ""))) return;
+    const detail = count ? " Die "+count+" enthaltenen Workflows werden nach „Unsortiert“ verschoben." : "";
+    if (!window.confirm('Ordner „'+folder.name+'“ löschen?'+detail)) return;
     try {
       api.deleteFolder(state, id);
       writeState(state);
@@ -170,15 +200,15 @@
     const state = readState();
     const workflow = state.workflows && state.workflows[workflowId];
     if (!workflow) return;
-    const folders = state.folders.filter(function(folder){ return folder.id !== workflow.folderId; });
-    if (!folders.length) return;
-    const lines = folders.map(function(folder,i){ return (i+1)+". "+folder.name; }).join("\n");
+    const targetFolders = state.folders.filter(function(folder){ return folder.id !== workflow.folderId; });
+    if (!targetFolders.length) return;
+    const lines = targetFolders.map(function(folder,i){ return (i+1)+". "+folder.name; }).join("\n");
     const choice = window.prompt("In welchen Ordner verschieben?\n\n"+lines, "");
     if (choice == null) return;
     const index = parseInt(choice,10)-1;
-    if (!Number.isInteger(index) || !folders[index]) return window.alert("Ungültige Auswahl.");
+    if (!Number.isInteger(index) || !targetFolders[index]) return window.alert("Ungültige Auswahl.");
     try {
-      api.moveWorkflowToFolder(state, workflowId, folders[index].id);
+      api.moveWorkflowToFolder(state, workflowId, targetFolders[index].id);
       writeState(state);
       window.location.reload();
     } catch(e) {
@@ -214,11 +244,11 @@
   if (newFolderBtn) newFolderBtn.addEventListener("click", createFolder);
 
   render();
+  list.dataset.folderStateSignature = localStorage.getItem(STORAGE_KEY) || "";
   window.setInterval(function(){
     const raw = localStorage.getItem(STORAGE_KEY) || "";
-    const signature = raw;
-    if (signature !== list.dataset.folderStateSignature){
-      list.dataset.folderStateSignature = signature;
+    if (raw !== list.dataset.folderStateSignature){
+      list.dataset.folderStateSignature = raw;
       render();
     }
   }, 400);
