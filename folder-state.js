@@ -1,0 +1,137 @@
+(function(){
+  "use strict";
+
+  const SYSTEM_FOLDER_NAME = "Unsortiert";
+  const SYSTEM_FOLDER_ID = "folder-unsorted";
+
+  function uid(){
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,9);
+  }
+
+  function now(){ return new Date().toISOString(); }
+
+  function createSystemFolder(){
+    const timestamp = now();
+    return {
+      id: SYSTEM_FOLDER_ID,
+      name: SYSTEM_FOLDER_NAME,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      system: true
+    };
+  }
+
+  function createFolder(name){
+    const value = String(name == null ? "" : name).trim();
+    if (!value) throw new Error("Der Ordnername darf nicht leer sein.");
+    if (value === SYSTEM_FOLDER_NAME) throw new Error("Der Systemordner darf nicht erneut angelegt werden.");
+    const timestamp = now();
+    return {
+      id: "folder-" + uid(),
+      name: value,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      system: false
+    };
+  }
+
+  function getFolderById(state, folderId){
+    if (!state || !Array.isArray(state.folders)) return null;
+    return state.folders.find(folder => folder.id === folderId) || null;
+  }
+
+  function ensureSystemFolder(state){
+    if (!state || typeof state !== "object") throw new Error("Ungültiger State.");
+    if (!Array.isArray(state.folders)) state.folders = [];
+    let systemFolder = state.folders.find(folder => folder.system === true || folder.id === SYSTEM_FOLDER_ID);
+    if (!systemFolder){
+      systemFolder = createSystemFolder();
+      state.folders.unshift(systemFolder);
+    }else{
+      systemFolder.id = SYSTEM_FOLDER_ID;
+      systemFolder.name = SYSTEM_FOLDER_NAME;
+      systemFolder.system = true;
+      systemFolder.createdAt = systemFolder.createdAt || now();
+      systemFolder.updatedAt = systemFolder.updatedAt || systemFolder.createdAt;
+    }
+    return systemFolder;
+  }
+
+  function normalizeWorkflows(state){
+    if (!state || typeof state !== "object") throw new Error("Ungültiger State.");
+    if (!state.workflows) state.workflows = {};
+    const systemFolder = ensureSystemFolder(state);
+    Object.keys(state.workflows).forEach(id => {
+      const workflow = state.workflows[id];
+      if (!workflow || typeof workflow !== "object") return;
+      workflow.id = workflow.id || id;
+      workflow.folderId = getFolderById(state, workflow.folderId) ? workflow.folderId : systemFolder.id;
+    });
+    if (!state.activeFolderId || !getFolderById(state, state.activeFolderId)){
+      const active = state.workflows[state.activeWorkflowId];
+      state.activeFolderId = active && getFolderById(state, active.folderId) ? active.folderId : systemFolder.id;
+    }
+    return state;
+  }
+
+  function migrateState(input){
+    const state = input && typeof input === "object" ? input : {};
+    normalizeWorkflows(state);
+    return state;
+  }
+
+  function renameFolder(state, folderId, name){
+    const folder = getFolderById(state, folderId);
+    if (!folder) throw new Error("Ordner nicht gefunden.");
+    if (folder.system) throw new Error("Der Systemordner darf nicht umbenannt werden.");
+    const value = String(name == null ? "" : name).trim();
+    if (!value) throw new Error("Der Ordnername darf nicht leer sein.");
+    const duplicate = state.folders.some(item => item.id !== folder.id && item.name.toLowerCase() === value.toLowerCase());
+    if (duplicate) throw new Error("Ein Ordner mit diesem Namen existiert bereits.");
+    folder.name = value;
+    folder.updatedAt = now();
+    return folder;
+  }
+
+  function deleteFolder(state, folderId){
+    const folder = getFolderById(state, folderId);
+    if (!folder) throw new Error("Ordner nicht gefunden.");
+    if (folder.system) throw new Error("Der Systemordner darf nicht gelöscht werden.");
+    const systemFolder = ensureSystemFolder(state);
+    Object.values(state.workflows || {}).forEach(workflow => {
+      if (workflow && workflow.folderId === folderId) workflow.folderId = systemFolder.id;
+    });
+    state.folders = state.folders.filter(item => item.id !== folderId);
+    if (state.activeFolderId === folderId) state.activeFolderId = systemFolder.id;
+    return systemFolder.id;
+  }
+
+  function moveWorkflowToFolder(state, workflowId, folderId){
+    const workflow = state.workflows && state.workflows[workflowId];
+    if (!workflow) throw new Error("Workflow nicht gefunden.");
+    if (!getFolderById(state, folderId)) throw new Error("Ungültige folderId.");
+    workflow.folderId = folderId;
+    workflow.updatedAt = now();
+    return workflow;
+  }
+
+  function getWorkflowsForFolder(state, folderId){
+    if (!getFolderById(state, folderId)) return [];
+    return Object.values(state.workflows || {}).filter(workflow => workflow && workflow.folderId === folderId);
+  }
+
+  window.ChainIndexFolderState = {
+    SYSTEM_FOLDER_ID,
+    SYSTEM_FOLDER_NAME,
+    createSystemFolder,
+    createFolder,
+    renameFolder,
+    deleteFolder,
+    moveWorkflowToFolder,
+    getFolderById,
+    getWorkflowsForFolder,
+    migrateState,
+    ensureSystemFolder
+  };
+})();
