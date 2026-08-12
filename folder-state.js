@@ -16,4 +16,5 @@
   window.ChainIndexFolderState={SYSTEM_FOLDER_ID,SYSTEM_FOLDER_NAME,createSystemFolder,createFolder,renameFolder,deleteFolder,moveWorkflowToFolder,getFolderById,getWorkflowsForFolder,migrateState,ensureSystemFolder};
   const nodeModelScript=document.createElement("script");nodeModelScript.src="./node-model.js";nodeModelScript.async=false;document.body.appendChild(nodeModelScript);
   const folderUiScript=document.createElement("script");folderUiScript.src="./folder-ui.js";folderUiScript.async=false;document.body.appendChild(folderUiScript);
+  const promptNavScript=document.createElement("script");promptNavScript.src="./prompt-nav.js";promptNavScript.async=false;document.body.appendChild(promptNavScript);
 })();
